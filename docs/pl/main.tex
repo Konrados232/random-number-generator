@@ -1,0 +1,150 @@
+\documentclass[60pt]{article}
+\usepackage[a4paper, margin={1in, 1in}]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage{polski}
+\usepackage{mathtools}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{multicol}
+\usepackage{paralist}
+\usepackage{tabto}
+\usepackage{graphicx}
+\usepackage{etoolbox}
+\usepackage{changepage}
+\usepackage{tasks}
+\usepackage{pgfplots}
+\usepackage{fancyhdr}
+\usepackage{mathtools}
+\usepackage{tikz}
+\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+\usepackage{graphicx}
+
+\usepackage{minted}
+\usemintedstyle{autumn}
+
+\DeclareMathOperator{\arctg}{arctg}
+\DeclareMathOperator{\sh}{sh}
+\DeclareMathOperator{\ch}{ch}
+\DeclareMathOperator{\sgn}{sgn}
+
+\let\arctan\relax
+\DeclareMathOperator{\arctan}{arctg}
+\let\tan\relax
+\DeclareMathOperator{\tan}{tg}
+
+\pagestyle{fancy}
+
+\title{Generator liczb pseudolosowaych}
+\author{Konrad Nowak}
+
+\begin{document}
+
+\maketitle
+
+\newpage
+\tableofcontents
+
+\newpage
+
+\section{Wstęp}
+\subsection{Cel projektu}
+Głównym celem projektu jest zaimplementowanie standardowego generatora liczb pseudolosowych bez korzystania z wbudowanych bibliotek losujących liczby. Z głównego generatora będą korzystały generatory m.in. różnych rozkładów w tym:
+\begin{itemize}
+    \item Generator liczb zmiennoprzecinkowych w przedziale $(0,1)$
+    \item Generator Bernoulliego
+    \item Generator rozkładu dwumianowego
+    \item Generator rozkładu Poissona
+    \item Generator rozkładu wykładniczego
+    \item Generator rozkładu normalnego
+\end{itemize}
+Kolejnym z celów jest analiza pseudolosowości oraz poprawności każdego z generatorów. Jakie możliwe poprawki można by było nanieść w implementacji i sprawdzenie, czy wygenerowany ciąg liczb sprawia wrażenie losowego.
+
+\subsection{Implementacja}
+Implementacja zawiera 3 pliki:
+\begin{itemize}
+    \item $Generator.py$ - klasa zawierająca implementację wszystkich generatorów, w konstruktorze przyjmująca wartość ziarna. Dodatkowo posiada metody zmiany i resetu ziarna.
+    \item $Test.py$ - klasa zawierająca metody pozwalające testować generatory za pomocą testów serii oraz pozwalająca wypisać histogram generatora podanego w konstruktorze.
+    \item $main.py$ - główny plik do kompilowania, w którym są zapisane przykładowe wywołania generatorów i testów.
+\end{itemize}
+
+\newpage
+
+\section{Rodzaje generatorów}
+\subsection{Generator G}
+Generator addytywny postaci:
+$$X_n = (a \cdot X_{n-1} + c) \mod m$$
+Gdzie:
+\begin{itemize}
+    \item $X_n$ - nasza wygenerowana liczba
+    \item $X_{n-1}$ - poprzednio wygenerowana liczba lub początkowa
+    \item $a$ - stała, mnożnik
+    \item $c$ - stała, przyrost, spełniająca warunek $NWD(c,m) = 1$
+    \item $m$ - moduł
+\end{itemize}
+W naszym przypadku:
+$$X_n = (5^{10} \cdot X_{n-1} + 7151) \mod 2^{31} - 1$$
+Generator może wylosować liczby z przedział do maksymalnej wartości $int$, co pozwala na znaczne zróżnicowanie wyników. Stała $c$ oraz $m$ muszą być liczbami względnie pierwszymi, by nie doszło do sytuacji, gdzie pojawia się ciąg zer.
+\\
+Generator będzie używany jako baza dla reszty przedstawionych generatorów.
+
+
+\subsection{Generator J}
+Generator liczb zmiennoprzecinkowych w przedziale $(0,1)$ przy wykorzystaniu generatora G. Jego działanie jest bardzo proste - biorąc wynik z generatora G dzielimy go przez 
+Wykorzystując generator G, otrzymujemy wynik przez wzór $\frac{G() + 1}{m + 1}$, co zagwarantuje, że wyniki będą w przedziale $(0,1)$.
+
+\subsection{Generator B}
+Generator dwupunktowy, zwracający $1$ w przypadku sukcesu, bądź $0$ w przypadku porażki. Sprawdzamy wynik z wykorzystanego generatora J, czy wynik jest poniżej lub równy podanego w argumencie $p$ (prawdopodobieństwa), co uznajemy za sukces. W przeciwnym wypadku - porażkę. 
+
+\subsection{Generator D}
+Generator rozkładu dwumianowego dla podanych w argumencie $p$ (prawdopodobieństwa) oraz $n$ (ilości prób). Dla każdego coraz to kolejnych wyników z generatora B zliczamy łączną liczbą sukcesów.
+
+\subsection{Generator P}
+Jako argument przyjmuje $\lambda$ (wartość oczekiwaną). Generator korzysta z generatora J, mnoży kolejne prawdopodobieństwa wydarzenia się danej liczby zdarzeń w jednej jednostce czasu aż wartość nie przekroczy $q = e^{-\lambda}$ (wylosowana na początku wartość). Rozkład Poissona jest szczególnym przypadkiem rozkładu dwumianowego, w którym nasze zdarzenia rozpatrujemy w coraz to mniejszych przedziałach czasowych, stąd $q = e^{-\lambda}$, gdyż $\lim_{n \to \infty} (\frac{\lambda}{n})^k \cdot(1 - \frac{\lambda}{n})^{n-k} = e^{-\lambda}$.
+
+\subsection{Generator W}
+Jako argument przyjmuje $\lambda$ (wartość oczekiwaną). Generator korzysta z obliczonej dystrybuanty dla $f(x) = \lambda e ^ {-\lambda x}$  $F(x) = 1 - e^{-\lambda x}$ i jej odwrotności $F^{-1}(x) = \frac{-\log(U)}{\lambda}$, gdzie $U$ to liczba pomiędzy 0 a 1 z naszego generatora J (we wzorze jest $\log(1 - U)$, ale skoro $U \in (0,1)$, to możemy to po prostu zapisać jako $U$. Rozkład wykładniczy opisuje odstępy czasu między kolejnymi wydarzeniami.
+
+\subsection{Generator N}
+Korzysta z metody Boxa-Mullera, która wyznacza parę dwóch zmiennych $(x,y)$ wyznaczonych wzorami $x = \sqrt{-2 \log (1 - U_1)} \cdot \cos(2 \p U_2)i$ oraz $y = \sqrt{-2 \log (1 - U_1)} \cdot \sin(2 \p U_2)$, gdzie $U_1$ i $U_2$ to wartości wygenerowane przez generator J. Następnie przeskalowuje wyliczony $x$ o podaną w argumencie zmienną $o$ oraz przesuniecie $u$ (zamiana standardowego rozkładu na parametryzowany).
+
+
+\section{Testy}
+\subsection{Eksperymenty}
+Dla każdego z generatorów zostały przeprowadzone cztery serie eksperymentów: dla ziaren: $454565756$, $246457877$, $897654345$ oraz $986168$. Dla każdego z generatorów zostały przeprowadzone takie same wywołania generatorów (z odpowiednimi zmiennymi wejściowymi):
+\begin{minted}{python}
+main_test.G_histogram(10000)
+main_test.J_histogram(10000)
+main_test.B_histogram(10000, 0.75)
+main_test.B_histogram(10000, 0.15)
+main_test.D_histogram(10000, 0.80, 30)
+main_test.D_histogram(10000, 0.20, 100)
+main_test.P_histogram(10000, 1)
+main_test.P_histogram(10000, 5)
+main_test.P_histogram(10000, 10)
+main_test.W_histogram(10000, 10)
+main_test.N_histogram(10000, 9765625, 7151)
+\end{minted}
+
+
+\subsection{Testy serii}
+Testy serii zostały wykonane na takich samych ziarnach na generatorze G oraz J (powinny dawać dokładnie takie same wyniki) i próbkach $10000$ elementów. Test serii polega na wyliczeniu mediany wygenerowanych elementów i podzielenie ich na dwa zbiory $A$ i $B$ - wartości poniżej mediany i powyżej mediany (wartości równe medianie pomijamy). Tworzymy dodatkową tablicę i sprawdzamy, ile jest serii powtarzających się elementów z jednego i drugiego zbioru. Liczba serii będzie podlegała rozkładowi naturalnemu, więc obliczamy wartość średnią i wariancję, a z nich statystykę $Z$. Sprawdzamy, czy $Z$ mieści się między $-1.96$ a $1.96$ ($2,5\%$ z obu stron rozkładu odcinamy, by sprawdzić, czy wynik mieści się w $95\%$ wyników).
+
+\section{Wnioski}
+Wynikowe histogramy oraz testy serii pokazały, że generator G jest w stanie generować liczby w miarę pseudolosowe i poprawne z nich rozkłady. Jednakże nie dla każdego ziarna jest to tak dokładne. Do poprawy mogłyby być na pewno współczynniki w generatorze G dobrane znacznie lepiej oraz jego znaczna modyfikacja zwiększająca poczucie losowości danych. 
+
+
+\newpage
+
+\section{Źródła}
+\begin{itemize}
+    \item $http://home.agh.edu.pl/~chwiej/mn/generatory_16.pdf$
+    \item $https://pl.wikipedia.org/wiki/Test_serii$
+    \item $https://eduinf.waw.pl/inf/alg/001_search/0020.php$
+    \item $https://pl.wikipedia.org/wiki/Rozkład_Poissona$
+    \item $Wieczorkowski_R._-_Komputerowe_generatory_liczb_losowych$
+\end{itemize}
+
+
+\end{document}
